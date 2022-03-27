@@ -45,13 +45,25 @@ def get_repo(
     return project.repos.setdefault(repository_slug, RepoState())
 
 
+def assert_new_pr_is_unique(new_pr: NewPullRequest, prs: List[PullRequest]) -> None:
+    matching = [
+        pr for pr in prs if pr.toRef == new_pr.toRef and pr.fromRef == new_pr.fromRef
+    ]
+    assert len(matching) == 0
+
+
 @router.post(
     "/pull-requests",
     status_code=HTTPStatus.CREATED,
 )
-def create_pull_request(pr: NewPullRequest, repo: RepoState = Depends(get_repo)):
-    repo.prs.append(PullRequest(state="OPEN", id=repo.counter, version=0, **pr.dict()))
+def create_pull_request(
+    new_pr: NewPullRequest, repo: RepoState = Depends(get_repo)
+) -> PullRequest:
+    assert_new_pr_is_unique(new_pr, repo.prs)
+    pr = PullRequest(state="OPEN", id=repo.counter, version=0, **new_pr.dict())
+    repo.prs.append(pr)
     repo.counter = repo.counter + 1
+    return pr
 
 
 @router.get("/pull-requests/{pr_id}")
@@ -61,17 +73,23 @@ def get_pull_request(pr_id: int, repo: RepoState = Depends(get_repo)) -> PullReq
 
 
 @router.post("/pull-requests/{pr_id}/decline")
-def decline_pull_request(pr_id: int, version: int, repo: RepoState = Depends(get_repo)):
-    matching = [pr for pr in repo.prs if pr.id == pr_id]
-    assert matching[0].version == version
-    matching[0].state = "DECLINED"
+def decline_pull_request(
+    pr_id: int, version: int, repo: RepoState = Depends(get_repo)
+) -> PullRequest:
+    [pr] = [pr for pr in repo.prs if pr.id == pr_id]
+    assert pr.version == version
+    pr.state = "DECLINED"
+    return pr
 
 
 @router.post("/pull-requests/{pr_id}/merge")
-def merge_pull_request(pr_id: int, version: int, repo: RepoState = Depends(get_repo)):
-    matching = [pr for pr in repo.prs if pr.id == pr_id]
-    assert matching[0].version == version
-    matching[0].state = "MERGED"
+def merge_pull_request(
+    pr_id: int, version: int, repo: RepoState = Depends(get_repo)
+) -> PullRequest:
+    [pr] = [pr for pr in repo.prs if pr.id == pr_id]
+    assert pr.version == version
+    pr.state = "MERGED"
+    return pr
 
 
 @router.get("/pull-requests")
@@ -80,7 +98,7 @@ def get_pull_requests(
     limit: int = 50,
     start: int = 0,
     state: PRState = "ALL",
-):
+) -> Page[PullRequest]:
     prs = [pr for pr in repo.prs if state == "ALL" or pr.state == state]
     is_last_page = start + limit >= len(prs)
     return Page(
@@ -98,7 +116,7 @@ class BitbucketMock:
     _state: State = field(init=False, default_factory=State)
     _app: FastAPI = field(init=False, default_factory=FastAPI)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._app.dependency_overrides[get_state] = lambda: self._state
         self._app.include_router(router)
 

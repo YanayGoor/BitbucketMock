@@ -1,7 +1,7 @@
 from typing import Optional, Literal, TypeVar, Generic, List, Any
 
 from pydantic import BaseModel
-
+from pydantic.generics import GenericModel
 
 T = TypeVar("T")
 
@@ -41,10 +41,10 @@ class PullRequest(BaseModel):
     version: int
 
 
-class Page(BaseModel):
+class Page(GenericModel, Generic[T]):
     size: int
     limit: int
     isLastPage: bool
-    values: List[Any]
+    values: List[T]
     start: int
     nextPageStart: Optional[int]

@@ -43,7 +43,7 @@ def test_create_pr(client):
         "isLastPage": True,
         "limit": 50,
         "nextPageStart": None,
-        "size": 0,
+        "size": 1,
         "start": 0,
         "values": [
             {
